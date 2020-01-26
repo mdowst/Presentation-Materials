@@ -1,0 +1,61 @@
+let timeAgo = ago(1d);
+let ParentJobs = AzureDiagnostics
+| where TimeGenerated > timeAgo
+| where RunbookName_s == "Patch-MicrosoftOMSComputers" and StreamType_s == "Verbose" and Category == "JobStreams" 
+| where ResultDescription contains "Getting SoftwareUpdateConfigurationMachines"
+| extend ScheduleName = substring(ResultDescription,indexof(ResultDescription, "SoftwareUpdateConfigurationName")+32, indexof(ResultDescription, "ShouldResolveStaticMachines")-indexof(ResultDescription, "SoftwareUpdateConfigurationName")-34)
+| project TimeGenerated, ScheduleName, ParentJobId_g = JobId_g
+| join kind= inner (
+    AzureDiagnostics
+    | where TimeGenerated > timeAgo
+    | where RunbookName_s == "Patch-MicrosoftOMSComputers" and StreamType_s == "Verbose" and Category == "JobStreams" 
+    | where ResultDescription contains "Wait-AutomationJob"
+    | extend jobId = substring(ResultDescription,indexof(ResultDescription, "JobId")+6, 36)
+    | summarize arg_max(TimeGenerated, *) by jobId
+    | project TimeGenerated, jobId, ParentJobId_g = JobId_g
+) on ParentJobId_g
+| project ScheduleName, ParentJobId_g, jobId;
+let RunningJobs = AzureDiagnostics 
+| where TimeGenerated >= timeAgo and ResourceProvider == "MICROSOFT.AUTOMATION" and RunbookName_s == "Patch-MicrosoftOMSComputer" 
+| where RunOn_s != "" 
+| summarize arg_max(TimeGenerated, *) by JobId_g
+| where ResultDescription == "Job is started" 
+| extend RunOn = substring(RunOn_s,0,strlen(RunOn_s)-37)
+| extend timeAgo = now() - TimeGenerated
+| extend timeAgoMinutes = round(timeAgo/1m,0)
+| project jobId = JobId_g, EndDateTimeUtc = datetime(null), DurationInMinutes = timeAgoMinutes, MachineName = RunOn, StartDateTimeUtc = TimeGenerated, Status = "In Progress",StatusDescription = "",RebootRequired = false,InitialRequiredUpdatesCount = toreal(0),TotalUpdatesInstalled = toreal(0),TotalUpdatesFailed = toreal(0),InstallPercentage = toreal(0);
+let CompletedJobs = AzureDiagnostics 
+| where TimeGenerated >= timeAgo and ResourceProvider == "MICROSOFT.AUTOMATION" and RunbookName_s == "Patch-MicrosoftOMSComputer" 
+| where resultDescription_Summary_Status_s !in ("","InProgress")
+| project jobId = JobId_g, EndDateTimeUtc = resultDescription_Summary_EndDateTimeUtc_t,DurationInMinutes = resultDescription_Summary_DurationInMinutes_d,MachineName = resultDescription_Summary_MachineName_s,StartDateTimeUtc = resultDescription_Summary_StartDateTimeUtc_t,Status = resultDescription_Summary_Status_s,StatusDescription = resultDescription_Summary_StatusDescription_s,RebootRequired = resultDescription_Summary_RebootRequired_b,InitialRequiredUpdatesCount = resultDescription_Summary_InitialRequiredUpdatesCount_d,TotalUpdatesInstalled = resultDescription_Summary_TotalUpdatesInstalled_d,TotalUpdatesFailed = resultDescription_Summary_TotalUpdatesFailed_d,InstallPercentage = resultDescription_Summary_InstallPercentage_d;
+let SuspendStatus = AzureDiagnostics
+| where TimeGenerated > timeAgo
+| where RunbookName_s == "Patch-MicrosoftOMSComputers" and StreamType_s == "Verbose" and Category == "JobStreams" 
+| where ResultDescription contains "Status = FailedToStart"
+| extend jobId = substring(ResultDescription,indexof(ResultDescription, "ChildJobId")+13, 36)
+| project TimeGenerated, jobId, ParentJobId_g = JobId_g
+| join kind= leftouter (
+    AzureDiagnostics
+    | where TimeGenerated > timeAgo
+    | where RunbookName_s == "Patch-MicrosoftOMSComputers" and StreamType_s == "Output" and Category == "JobStreams" 
+    | project resultDescription_ChildJobs_s
+    | extend RunOn_object = parsejson(resultDescription_ChildJobs_s)
+    | mvexpand RunOn_object
+    | project RunOn = tostring(RunOn_object.RunOn), jobId = tostring(RunOn_object.JobId) 
+) on jobId 
+| extend MachineName = substring(RunOn,0,strlen(RunOn)-37)
+| join kind= leftouter (
+	AzureDiagnostics
+	| where TimeGenerated > timeAgo
+	| where RunbookName_s == "Patch-MicrosoftOMSComputers" and StreamType_s == "Verbose" and Category == "JobStreams" 
+	| where ResultDescription contains "message=Created SUCR"
+	| extend ConfigName = substring(ResultDescription,indexof(ResultDescription, "-SoftwareUpdateConfigurationName")+33, strlen(ResultDescription) - indexof(ResultDescription, "SoftwareUpdateConfigurationName")-33)
+	| project ScheduleName = substring(ConfigName,0,indexof(ConfigName, " -")), ParentJobId_g = JobId_g
+) on ParentJobId_g 
+| project jobId, EndDateTimeUtc = TimeGenerated,DurationInMinutes = toreal(0),MachineName,StartDateTimeUtc = TimeGenerated,Status = "FailedToStart",StatusDescription = "Job was suspended.",RebootRequired = false,InitialRequiredUpdatesCount = toreal(0),TotalUpdatesInstalled = toreal(0),TotalUpdatesFailed = toreal(0),InstallPercentage = toreal(0);
+union CompletedJobs, RunningJobs, SuspendStatus
+| join kind= leftouter (
+    ParentJobs
+) on jobId 
+| project MachineName, ScheduleName, Status, DurationInMinutes, StartDateTimeUtc, EndDateTimeUtc, StatusDescription, RebootRequired, InitialRequiredUpdatesCount, TotalUpdatesInstalled, TotalUpdatesFailed, InstallPercentage
+| sort by Status desc
