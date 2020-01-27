@@ -34,10 +34,12 @@ $jobId = Start-AutomationRunbook -Name $runbook -Parameters @{ "args" = $args } 
 # wait for the job to finish
 $wait = Wait-AutomationJob -Id $jobId -TimeoutInMinutes 10
 
-# Get th output if you need it
-$JobOutput = Get-AzureRMAutomationJobOutput -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -Id $jobId -stream Output
-[System.Collections.Generic.List[PSObject]] $ParsedResults = @()
-foreach($Output in $JobOutput){
-    $JobOutputRecord = Get-AzureRmAutomationJobOutputRecord -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -JobId $Output.JobId -Id $Output.StreamRecordId
-    $ParsedResults.Add(($JobOutputRecord.Value['value']))
+#In this case, we want to terminate the patch job if any run fails.
+#This logic might not hold for all cases - you might want to allow success as long as at least 1 run succeeds
+$JobOutput = Get-AzAutomationJobOutput -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName -Id $jobId -stream Any
+foreach($summary in $JobOutput){
+    if ($summary.Type -eq "Error"){
+        #We must throw in order to fail the patch deployment.
+        throw $summary.Summary
+    }
 }
