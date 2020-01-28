@@ -31,7 +31,7 @@ foreach ($item in $AutomationAccounts) {
 $jobId = Start-AutomationRunbook -Name $runbook -Parameters @{ "args" = $args } -RunOn $hybridWorker -ErrorAction Stop
 
 # wait for the job to finish
-$wait = Wait-AutomationJob -Id $jobId -TimeoutInMinutes 10
+Wait-AutomationJob -Id $jobId -TimeoutInMinutes 10
 
 #In this case, we want to terminate the patch job if any run fails.
 #This logic might not hold for all cases - you might want to allow success as long as at least 1 run succeeds
