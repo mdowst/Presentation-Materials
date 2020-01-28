@@ -1,7 +1,3 @@
-$ResourceGroupName = ''
-$AutomationAccountName = ''
-$WorkspaceName = ''
-
 # Create the schedule object
 $startTime = Get-Date '21:00:00'
 $AzAutomationSchedule = @{

@@ -23,13 +23,12 @@ foreach ($item in $AutomationAccounts) {
   if ($Job) {
     $AutomationAccountName = $item.Name
     $ResourceGroupName = $item.ResourceGroupName
-    $RunbookName = $Job.RunbookName
     break
   }
 }
 
 # Start the runbook on the hybrid worker
-$jobId = Start-AutomationRunbook -Name $runbook -Parameters @{ "args" = $args } -RunOn $server.Server -ErrorAction Stop
+$jobId = Start-AutomationRunbook -Name $runbook -Parameters @{ "args" = $args } -RunOn $hybridWorker -ErrorAction Stop
 
 # wait for the job to finish
 $wait = Wait-AutomationJob -Id $jobId -TimeoutInMinutes 10

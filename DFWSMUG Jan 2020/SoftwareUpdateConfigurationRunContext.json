@@ -1,0 +1,23 @@
+{
+    "SoftwareUpdateConfigurationName": "Pre-Example",
+    "SoftwareUpdateConfigurationRunId": "3bf1f669-4117-4288-8f5f-7aa02ab0f878",
+    "SoftwareUpdateConfigurationSettings": {
+        "OperatingSystem": 1,
+        "WindowsConfiguration": {
+            "UpdateCategories": 16,
+            "ExcludedKBNumbers": null,
+            "IncludedKBNumbers": null,
+            "RebootSetting": "Never"
+        },
+        "LinuxConfiguration": null,
+        "Targets": null,
+        "NonAzureComputerNames": [
+            "ServerTest02"
+        ],
+        "AzureVirtualMachines": [],
+        "Duration": "00:30:00",
+        "PSComputerName": "localhost",
+        "PSShowComputerName": true,
+        "PSSourceJobInstanceId": "3bf1f669-4117-4288-8f5f-7aa02ab0f878"
+    }
+}

@@ -1,7 +1,3 @@
-$ResourceGroupName = ''
-$AutomationAccountName = ''
-$WorkspaceId = ''
-
 # Query log analytics group for nonAzure Windows machines
 $query = @'
 Heartbeat
@@ -13,4 +9,5 @@ $Computers = $queryResults.Results | Select-Object -ExpandProperty Computer
 
 # Confirm all machines are Hybrid Runbook Workers and reporting 
 Get-AzAutomationHybridWorkerGroup -ResourceGroupName $ResourceGroupName -AutomationAccountName $AutomationAccountName |
-    Where-Object{ $_.GroupType -eq 'System'} | Select-Object -ExpandProperty RunbookWorker | Where-Object{ $Computers -contains $_.GroupType }
+    Where-Object{ $_.GroupType -eq 'System'} | Select-Object -ExpandProperty RunbookWorker | 
+    Where-Object{ $Computers -contains $_.Name }
