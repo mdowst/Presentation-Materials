@@ -12,9 +12,11 @@ $schedule = New-AzAutomationSchedule @AzAutomationSchedule
 
 $WorkspaceObject = Get-AzOperationalInsightsWorkspace -ResourceGroupName $ResourceGroupName -Name $WorkspaceName
 
+# Create Non Azure Query Object
 $NonAzureQuery = [Microsoft.Azure.Commands.Automation.Model.UpdateManagement.NonAzureQueryProperties]::new()
 $NonAzureQuery.FunctionAlias = 'NonAzure_Windows'
 $NonAzureQuery.WorkspaceResourceId = $WorkspaceObject.ResourceId
+
 # Create the update deployment
 $duration = New-TimeSpan -Hours 2
 $UpdateConfiguration = @{
