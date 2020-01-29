@@ -1,4 +1,5 @@
 let timeAgo = ago(1d);
+// Get the Parent Jobs
 let ParentJobs = AzureDiagnostics
 | where TimeGenerated > timeAgo
 | where RunbookName_s == "Patch-MicrosoftOMSComputers" and StreamType_s == "Verbose" and Category == "JobStreams" 
@@ -15,6 +16,7 @@ let ParentJobs = AzureDiagnostics
     | project TimeGenerated, jobId, ParentJobId_g = JobId_g
 ) on ParentJobId_g
 | project ScheduleName, ParentJobId_g, jobId;
+// Get any jobs that are still running
 let RunningJobs = AzureDiagnostics 
 | where TimeGenerated >= timeAgo and ResourceProvider == "MICROSOFT.AUTOMATION" and RunbookName_s == "Patch-MicrosoftOMSComputer" 
 | where RunOn_s != "" 
@@ -24,10 +26,12 @@ let RunningJobs = AzureDiagnostics
 | extend timeAgo = now() - TimeGenerated
 | extend timeAgoMinutes = round(timeAgo/1m,0)
 | project jobId = JobId_g, EndDateTimeUtc = datetime(null), DurationInMinutes = timeAgoMinutes, MachineName = RunOn, StartDateTimeUtc = TimeGenerated, Status = "In Progress",StatusDescription = "",RebootRequired = false,InitialRequiredUpdatesCount = toreal(0),TotalUpdatesInstalled = toreal(0),TotalUpdatesFailed = toreal(0),InstallPercentage = toreal(0);
+// Get the jobs that have completed
 let CompletedJobs = AzureDiagnostics 
 | where TimeGenerated >= timeAgo and ResourceProvider == "MICROSOFT.AUTOMATION" and RunbookName_s == "Patch-MicrosoftOMSComputer" 
 | where resultDescription_Summary_Status_s !in ("","InProgress")
 | project jobId = JobId_g, EndDateTimeUtc = resultDescription_Summary_EndDateTimeUtc_t,DurationInMinutes = resultDescription_Summary_DurationInMinutes_d,MachineName = resultDescription_Summary_MachineName_s,StartDateTimeUtc = resultDescription_Summary_StartDateTimeUtc_t,Status = resultDescription_Summary_Status_s,StatusDescription = resultDescription_Summary_StatusDescription_s,RebootRequired = resultDescription_Summary_RebootRequired_b,InitialRequiredUpdatesCount = resultDescription_Summary_InitialRequiredUpdatesCount_d,TotalUpdatesInstalled = resultDescription_Summary_TotalUpdatesInstalled_d,TotalUpdatesFailed = resultDescription_Summary_TotalUpdatesFailed_d,InstallPercentage = resultDescription_Summary_InstallPercentage_d;
+// Get any suspended jobs
 let SuspendStatus = AzureDiagnostics
 | where TimeGenerated > timeAgo
 | where RunbookName_s == "Patch-MicrosoftOMSComputers" and StreamType_s == "Verbose" and Category == "JobStreams" 
@@ -53,6 +57,7 @@ let SuspendStatus = AzureDiagnostics
 	| project ScheduleName = substring(ConfigName,0,indexof(ConfigName, " -")), ParentJobId_g = JobId_g
 ) on ParentJobId_g 
 | project jobId, EndDateTimeUtc = TimeGenerated,DurationInMinutes = toreal(0),MachineName,StartDateTimeUtc = TimeGenerated,Status = "FailedToStart",StatusDescription = "Job was suspended.",RebootRequired = false,InitialRequiredUpdatesCount = toreal(0),TotalUpdatesInstalled = toreal(0),TotalUpdatesFailed = toreal(0),InstallPercentage = toreal(0);
+// Join all results on the parent jobs
 union CompletedJobs, RunningJobs, SuspendStatus
 | join kind= leftouter (
     ParentJobs
