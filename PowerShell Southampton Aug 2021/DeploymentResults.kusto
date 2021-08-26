@@ -1,0 +1,91 @@
+let timeago = ago(1d);
+let ScheduleName = "Domain Controller Group A";
+// Get the Parent Jobs
+let Parent = AzureDiagnostics
+| where TimeGenerated >= timeago and ResourceProvider == "MICROSOFT.AUTOMATION"
+| where RunbookName_s == "Patch-MicrosoftOMSComputers" and StreamType_s == "Verbose" and Category == "JobStreams" 
+| where ResultDescription contains "Created SUCR"
+| extend Name = trim("\\s",extract("-SoftwareUpdateConfigurationName(.*?)\\s-", 1, ResultDescription))
+| extend operatingSystem = trim("\\s",extract("-OperatingSystem(.*?)-", 1, ResultDescription))
+| where Name == ScheduleName
+| project TimeGenerated, ScheduleName = Name, OperatingSystem = operatingSystem, ParentJobId_g = JobId_g
+// Get the status for the parent jobs
+| join kind=leftouter (
+    AzureDiagnostics
+    | where TimeGenerated > timeago and ResourceProvider == "MICROSOFT.AUTOMATION"
+    | where RunbookName_s == "Patch-MicrosoftOMSComputers" and Category == "JobLogs"
+    | summarize arg_max(TimeGenerated, *) by JobId_g
+    | project ParentJobId_g = JobId_g, ParentStatus = ResultType
+) on ParentJobId_g
+| project-away ParentJobId_g1
+// Get the child jobs for each parent
+| join kind=leftouter (
+    AzureDiagnostics
+    | where TimeGenerated > timeago and ResourceProvider == "MICROSOFT.AUTOMATION"
+    | where RunbookName_s == "Patch-MicrosoftOMSComputers" and Category == "JobStreams" and StreamType_s == "Output"
+    | extend child = parse_json(ResultDescription).ChildJobs
+    | mv-expand child
+    | project JobId_g = tostring(child.JobId), Computer = substring(child.RunOn,0,strlen(child.RunOn)-37), ParentJobId_g = JobId_g
+) on ParentJobId_g
+| project-away ParentJobId_g1;
+let childJobs = Parent | distinct JobId_g;
+Parent
+// Get the results and the computer for each child job
+| join kind=leftouter (
+    AzureDiagnostics
+    | where TimeGenerated >= timeago and ResourceProvider == "MICROSOFT.AUTOMATION" and Category == "JobLogs" and JobId_g in (childJobs)
+    | where RunbookName_s in ("Patch-MicrosoftOMSComputer","PatchMicrosoftOMSLinuxComputer") 
+    | summarize arg_max(TimeGenerated, *) by JobId_g
+    | project JobId_g, JobResult = ResultType
+) on JobId_g
+| project-away JobId_g1
+// Get the result description for each child job
+| join kind=leftouter (
+    AzureDiagnostics
+    | where TimeGenerated > timeago and ResourceProvider == "MICROSOFT.AUTOMATION" and Category == "JobStreams" and JobId_g in (childJobs) 
+    | where (RunbookName_s == "PatchMicrosoftOMSLinuxComputer" and StreamType_s == "Output") or (RunbookName_s == "Patch-MicrosoftOMSComputer" and StreamType_s == "Verbose")
+    | where ResultDescription != "<End of output>" and ResultDescription != "" and ResultDescription !contains "Runbook runtime trace:"
+    | summarize arg_max(TimeGenerated, *) by JobId_g
+    | project JobId_g, Details = ResultDescription
+) on JobId_g
+| project-away JobId_g1
+// Get the results from the patch installation tasks
+| join kind=leftouter (
+    // Windows results
+    AzureDiagnostics 
+    | where TimeGenerated >= timeago and ResourceProvider == "MICROSOFT.AUTOMATION" and Category == "JobStreams" and JobId_g in (childJobs)
+    | where RunbookName_s == "Patch-MicrosoftOMSComputer" and StreamType_s == "Output"
+    | extend Summary = parse_json(tostring(parse_json(ResultDescription).Summary))
+    | where Summary.Status != ""
+    | summarize arg_max(TimeGenerated, *) by JobId_g
+    | project JobId_g, State = Summary.Status, TotalUpdatesFailed = toreal(Summary.TotalUpdatesFailed), 
+        TotalUpdatesInstalled = toreal(Summary.TotalUpdatesInstalled), StatusDescription = tostring(Summary.StatusDescription)
+    | union (
+        // Linux results
+        AzureDiagnostics
+        | where TimeGenerated >= timeago and ResourceProvider == "MICROSOFT.AUTOMATION" and Category == "JobStreams" and JobId_g in (childJobs)
+        | where RunbookName_s == "PatchMicrosoftOMSLinuxComputer" and StreamType_s == "Output"
+        | where ResultDescription startswith "Installed update count:"
+        | extend data = split(ResultDescription," ")
+        | extend TotalUpdatesInstalled = data[array_index_of(data, "count:")+1]
+        | project JobId_g, toreal(TotalUpdatesInstalled)
+        | join kind=fullouter (
+            AzureDiagnostics
+            | where TimeGenerated >= timeago and ResourceProvider == "MICROSOFT.AUTOMATION" and Category == "JobStreams" and JobId_g in (childJobs)
+            | where RunbookName_s == "PatchMicrosoftOMSLinuxComputer" and StreamType_s == "Output"
+            | extend runtrace = parse_json(substring(ResultDescription,indexof(ResultDescription, "Runbook runtime trace:")+23))
+            | where runtrace.category == "State"
+            | summarize arg_max(TimeGenerated, *) by JobId_g
+            | project JobId_g, State = runtrace.message
+        ) on JobId_g
+        | extend jobid = iif(isempty(JobId_g), JobId_g1, JobId_g)
+        | project JobId_g = jobid, State, TotalUpdatesFailed = toreal(0), TotalUpdatesInstalled, StatusDescription = ""
+    )
+) on JobId_g
+| project-away JobId_g1
+| extend finalStatus = iif(State =~ "Succeeded.", "Complete", iif(State =~ "InProgress" and ParentStatus == "Completed", "Suspended", 
+    iif(isempty(State), "Failed", State)))
+| extend statusDescription = iif(isnotempty(StatusDescription), StatusDescription, iif(isempty(Details), "Job failed to start", iif(Details startswith "Sleeping for", "Job suspended after reboot", Details)))
+| extend TotalUpdatesInstalled = iif(isnotempty(TotalUpdatesInstalled), TotalUpdatesInstalled, toreal(0))
+| extend TotalUpdatesFailed = iif(isnotempty(TotalUpdatesFailed), TotalUpdatesFailed, toreal(0))
+| project ScheduleName, Computer, OperatingSystem, Status = finalStatus, Details = statusDescription, UpdatesInstalled = TotalUpdatesInstalled, UpdatesFailed = TotalUpdatesFailed, JobId = JobId_g
