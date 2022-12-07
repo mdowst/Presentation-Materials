@@ -5,7 +5,6 @@ $ScriptContent = Get-Content '.\05 Get-SystemInfo.ps1' -Raw
 $Query = @'
 resources
 | where type in~ ('microsoft.hybridcompute/machines','microsoft.compute/virtualmachines')
-    and subscriptionId =~ '761c0575-7564-4d8a-9d43-f468bc57c723'
 | extend statusRaw = iif(isempty(properties.status),
 coalesce(properties.powerState, properties.status.powerState, tostring(split(tolower(properties.extended.instanceView.powerState.code), "powerstate/")[1])),
 properties.status)
