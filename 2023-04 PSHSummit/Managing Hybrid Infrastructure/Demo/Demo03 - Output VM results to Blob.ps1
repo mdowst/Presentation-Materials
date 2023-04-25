@@ -49,7 +49,7 @@ do{
         }
         $cmd = $null
     }
-    Write-Progress -Activity "Command : $($cmd.Name)" -Status "InstanceViewStatusCode : $($cmd.InstanceView.ExecutionState)" -PercentComplete (pc) -id 1
+    Write-Progress -Activity "Command : $($cmd.Name)" -Status "InstanceViewStatusCode : $($cmd.InstanceView.ExecutionState)" -PercentComplete 10 -id 1
     Start-Sleep -Seconds 3
 }while($cmd.InstanceView.ExecutionState -notin 'Succeeded','Failed' -or -not $cmd )
 Write-Progress -Activity "Done" -Id 1 -Completed

@@ -49,14 +49,14 @@ do{
             throw $_
         }
     }
-    Write-Progress -Activity "ProvisioningState : $($ArcCmd.ProvisioningState)" -Status "InstanceViewStatusCode : $($ArcCmd.InstanceViewStatusCode)" -PercentComplete (pc) -id 1
+    Write-Progress -Activity "ProvisioningState : $($ArcCmd.ProvisioningState)" -Status "InstanceViewStatusCode : $($ArcCmd.InstanceViewStatusCode)" -PercentComplete 10 -id 1
     Start-Sleep -Seconds 3
 }while($ArcCmd.ProvisioningState -notin 'Updating', 'Creating', 'Waiting')
 
 Write-Host "Wait for success state"
 while($ArcCmd.ProvisioningState -notin 'Succeeded','Failed'){
     $ArcCmd = Get-AzConnectedMachineExtension @AzConnectedMachineExtension
-    Write-Progress -Activity "ProvisioningState : $($ArcCmd.ProvisioningState)" -Status "InstanceViewStatusCode : $($ArcCmd.InstanceViewStatusCode)" -PercentComplete (pc) -id 1
+    Write-Progress -Activity "ProvisioningState : $($ArcCmd.ProvisioningState)" -Status "InstanceViewStatusCode : $($ArcCmd.InstanceViewStatusCode)" -PercentComplete 10 -id 1
     Start-Sleep -Seconds 3
 }
 Write-Progress -Activity "Done" -Id 1 -Completed

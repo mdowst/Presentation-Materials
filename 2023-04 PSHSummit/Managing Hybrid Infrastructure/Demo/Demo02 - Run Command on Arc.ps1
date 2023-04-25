@@ -35,7 +35,7 @@ $AzConnectedMachineExtension = @{
 # Wait for success
 do{
     $ArcCmd = Get-AzConnectedMachineExtension @AzConnectedMachineExtension
-    Write-Progress -Activity "ProvisioningState : $($ArcCmd.ProvisioningState)" -Status "InstanceViewStatusCode : $($ArcCmd.InstanceViewStatusCode)" -PercentComplete (pc) -id 1
+    Write-Progress -Activity "ProvisioningState : $($ArcCmd.ProvisioningState)" -Status "InstanceViewStatusCode : $($ArcCmd.InstanceViewStatusCode)" -PercentComplete 10 -id 1
     Start-Sleep -Seconds 3
 }while($ArcCmd.ProvisioningState -notin 'Succeeded','Failed')
 Write-Progress -Activity "Done" -Id 1 -Completed
