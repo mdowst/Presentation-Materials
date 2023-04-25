@@ -7,7 +7,7 @@ $mapiNamespace = $outlookApp.GetNameSpace("MAPI")
 
 # Get the Inbox and all the emails in it
 $Inbox = $mapiNamespace.GetDefaultFolder([Microsoft.Office.Interop.Outlook.OlDefaultFolders]::olFolderInbox)
-[System.Collections.Generic.List[PSObject]] $InboxItems = @()
+[Collections.Generic.List[PSObject]] $InboxItems = @()
 $Inbox.Items | Foreach-Object{ $InboxItems.Add($_) }
 
 
@@ -15,7 +15,8 @@ $Inbox.Items | Foreach-Object{ $InboxItems.Add($_) }
 # Filter based on the email address
 $InboxItems | Where-Object{ $_.SenderEmailAddress -eq 'azure-noreply@microsoft.com' } | Format-Table Subject
 
-
+# Get unique subjects
+$InboxItems | Where-Object{ $_.SenderEmailAddress -eq 'azure-noreply@microsoft.com' } | Select-Object Subject -Unique
 
 # Filter based on the email address and the subject
 $InboxItems | Where-Object{ $_.SenderEmailAddress -eq 'azure-noreply@microsoft.com' -and 
@@ -49,7 +50,7 @@ $InboxItems | Where-Object{ $_.SenderEmailAddress -eq 'azure-noreply@microsoft.c
 
 # Move-OutlookItem
 $Inbox = $mapiNamespace.GetDefaultFolder([Microsoft.Office.Interop.Outlook.OlDefaultFolders]::olFolderInbox)
-[System.Collections.Generic.List[PSObject]] $InboxItems = @()
+[Collections.Generic.List[PSObject]] $InboxItems = @()
 $Inbox.Items | Foreach-Object{ $InboxItems.Add($_) }
 Function Move-OutlookItem{
     [CmdletBinding()]
