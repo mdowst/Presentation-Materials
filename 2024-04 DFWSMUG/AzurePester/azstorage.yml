@@ -1,0 +1,59 @@
+on: 
+  workflow_dispatch:
+name: Storage Acct
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+
+    # Checkout code
+    - uses: actions/checkout@main
+
+    # Log into Azure
+    - uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    # Deploy ARM template
+    - name: Run ARM deploy
+      id: deploy
+      uses: azure/arm-deploy@v1
+      with:
+        subscriptionId: ${{ secrets.AZURE_SUBSCRIPTION }}
+        resourceGroupName: ${{ secrets.AZURE_RG }}
+        template: ./azuredeploy.json
+        parameters: storageAccountType=Standard_LRS
+
+    # output containerName variable from template
+    - run: echo ${{ steps.deploy.outputs.storageAccountSku }}
+
+    - name: Check Storage Account
+      shell: pwsh
+      run: |
+        Set-PSRepository PSGallery -InstallationPolicy Trusted
+        Install-Module Pester -MinimumVersion 5.5.0
+        Import-Module Pester -MinimumVersion 5.5.0
+        $config = New-PesterConfiguration
+        $config.TestResult.Enabled = $true
+        $config.TestResult.OutputFormat = 'JUnitXml'
+        $config.Output.Verbosity = 'Detailed'
+        $config.Run.Path = '.\PesterTester.ps1'
+        Invoke-Pester -Configuration $config
+      env:
+        Sku: ${{ steps.deploy.outputs.storageAccountSku }}
+        allowBlobPublicAccess: ${{ steps.deploy.outputs.allowBlobPublicAccess }}
+        supportsHttpsTrafficOnly: ${{ steps.deploy.outputs.supportsHttpsTrafficOnly }}
+        
+    - name: Deployment Report
+      uses: dorny/test-reporter@v1
+      if: success() || failure()    # run this step even if previous step failed
+      with:
+        name: ARM Tests
+        path: '*.xml' 
+        reporter: java-junit
