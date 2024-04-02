@@ -1,4 +1,4 @@
-# Testing Local Server Configuration#[quick]
+# Testing Local Server Configuration
 
 # Testing if a Service is Running
 Describe "WinRM Service" {
@@ -7,7 +7,7 @@ Describe "WinRM Service" {
         $service.Status | Should -Be "Running"
     }
 }
-#[pause]
+
 # Verifying a File Exists
 Describe "Configuration File" {
     It "Should exist" {

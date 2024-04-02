@@ -5,7 +5,7 @@ Describe "Spooler Service" {
         $service.StartupType | Should -Be "Disabled"
     }
 }
-#[pause]
+
 Describe "Spooler Service Separate Tests" {
     BeforeAll {
         $service = Get-Service -Name "Spooler"
@@ -17,7 +17,7 @@ Describe "Spooler Service Separate Tests" {
         $service.StartupType | Should -Be "Disabled"
     }
 }
-#[pause]
+
 Describe "Service Status with Foreach" {
     $servicesToCheck = @(
         @{ Name = "Spooler" }
@@ -34,7 +34,7 @@ Describe "Service Status with Foreach" {
         }
     }
 }
-#[pause]
+
 Describe "Service Status" {
     $servicesToCheck = @(
         @{Name = "mpssvc"; Status = 'Running'; Startup = 'Automatic' }
@@ -52,7 +52,7 @@ Describe "Service Status" {
         }
     }
 }
-#[pause]
+
 Describe "Service Status" {
     $servicesToCheck = Get-Content .\ServiceChecks.json -Raw | ConvertFrom-Json -AsHashtable
 
@@ -68,4 +68,3 @@ Describe "Service Status" {
         }
     }
 }
-#[pause]
