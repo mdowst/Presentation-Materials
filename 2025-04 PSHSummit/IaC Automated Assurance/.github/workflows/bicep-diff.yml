@@ -1,0 +1,45 @@
+name: Bicep What-If Comparison
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  bicep-diff:
+    runs-on: ubuntu-latest
+
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+    - name: Checkout PR branch
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Fetch base (main) branch
+      run: git fetch origin main
+
+    - name: Azure login
+      uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+        enable-AzPSSession: true
+
+    - name: Save base branch main.bicep
+      run: |
+        git show origin/main:main.bicep > base-main.bicep
+
+    - name: Run Azure PowerShell Script File
+      uses: azure/powershell@v2
+      with:
+        inlineScript: ./WhatIf/Compare-BicepWhatIf.ps1 -BicepFile1 ./base-main.bicep -BicepFile2 ./main.bicep -ResourceGroupName 'summit2025' -ParameterFile ./WhatIf/dev.bicepparam -OutputFile ./diff.md
+        azPSVersion: "latest"
+    
+    - name: Post comment to PR
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        recreate: true
+        path: diff.md

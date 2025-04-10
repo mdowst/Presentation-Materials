@@ -1,0 +1,13 @@
+# Synopsis: Ignore soft delete for development storage accounts
+apiVersion: github.com/microsoft/PSRule/v1
+kind: SuppressionGroup
+metadata:
+  name: Local.IgnoreNonProdStorage
+spec:
+  rule:
+  - Azure.Storage.SoftDelete
+  - Azure.Storage.UseReplication
+  - Azure.Storage.ContainerSoftDelete
+  if:
+    field: tags.env
+    equals: dev

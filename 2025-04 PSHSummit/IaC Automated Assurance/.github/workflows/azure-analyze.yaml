@@ -1,0 +1,53 @@
+# Analyze repository with PSRule for Azure
+
+name: Analyze Azure resources
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  analyze:
+    name: Analyze repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4.2.2
+
+      - name: Set input path
+        id: setpath
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'pull_request') {
+            "inputPath=WhatIf/" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+          elseif ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+            "inputPath=PSRule/" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+          else {
+            "inputPath=." | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
+
+      - name: Run PSRule analysis
+        uses: microsoft/ps-rule@v2.9.0
+        with:
+          inputPath: ${{ steps.setpath.outputs.inputPath }}
+          modules: PSRule.Rules.Azure
+          outputFormat: Sarif
+          outputPath: reports/ps-rule-results.sarif
+          summary: true
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4.6.2
+        if: always()
+        with:
+          name: PSRule-Sarif
+          path: reports/ps-rule-results.sarif
+          retention-days: 1
+          if-no-files-found: error

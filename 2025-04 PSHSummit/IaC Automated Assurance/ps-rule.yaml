@@ -1,0 +1,37 @@
+#
+# Specifies that the rules from the PSRule should use.
+#
+
+# Specifies a minimum version of PSRule for Azure.
+requires:
+  PSRule.Rules.Azure: '>=1.40.0'
+
+# Automatically use rules for Azure.
+include:
+  module:
+    - PSRule.Rules.Azure
+
+# Limits the files that PSRule analyzes to only those matching the *.bicepparam pattern.
+# Helps avoid processing unrelated files (like .json, .md, etc.).
+input:
+  pathIgnore:
+  - '**' # (3)
+  - '!**/*.bicepparam' # (4)
+
+configuration:
+  # Tells PSRule to automatically expand (compile) Bicep files into ARM templates before analysis.
+  # Equivalent to running 'bicep build' behind the scenes.
+  # Required for directly analyzing .bicep files without needing to manually convert them to ARM.
+  AZURE_BICEP_FILE_EXPANSION: true
+
+  # Detailed provides extended information in the result, like the rule ID, target object, recommendation, and result status (Pass, Fail, etc.).
+  execution:
+    output: Detailed
+
+
+# This tells PSRule how to bind input objects (like those from Bicep or ARM templates) to rules.
+# resourceType and type help PSRule identify what kind of resource is being evaluated (e.g., Microsoft.Storage/storageAccounts) and apply the correct rules accordingly.
+binding:
+  targetType:
+    - 'resourceType'
+    - 'type'
